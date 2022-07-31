@@ -15,7 +15,7 @@ import {
 import ReactDOM from 'react-dom';
 
 import { clusterApiUrl, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import React, { useState, FC, ReactNode, useMemo, useCallback } from 'react';
+import React, { useState, FC, ReactNode, useMemo, useCallback, useEffect } from 'react';
 
 import { Metadata } from "@metaplex-foundation/mpl-token-metadata";
 import { Account } from "@metaplex-foundation/mpl-core";
@@ -155,7 +155,7 @@ const Content = () => {
         currentI+=1
       });
   
-     return (<>{matchedCreator ? alert("Cuanto es 5 + 5"):alert("Aun no tienes una chacana")}</>)
+    
     })();
     }
     
@@ -172,23 +172,33 @@ const Content = () => {
     const { publicKey, sendTransaction } = useWallet();
 
     
+    const verifyCreator = () => {
+      return (<>{matchedCreator ? alert("Cuanto es 5 + 5"):alert("Aun no tienes una chacana")}</>)
+    }
+
     const onClick = useCallback( async () => {
       setMatchedCreator(false);
       tokensInWallet = []
 
       if (!publicKey) throw new WalletNotConnectedError();
       connection.getBalance(publicKey).then((bal) => {
-          console.log(bal/LAMPORTS_PER_SOL);
-
+        console.log(bal/LAMPORTS_PER_SOL);
+        
       });
-
+      
       console.log(publicKey.toBase58());
       getTheTokensOfOwner(publicKey.toBase58());
-
-  }, [publicKey, sendTransaction, connection]);
-
-    return (
-            <div className="navbar">
+      
+    }, [publicKey, sendTransaction, connection]);
+      
+    useEffect( ()=>{
+      const res = async() =>{
+        await onClick()
+      } 
+      res()
+    },[publicKey])
+      return (
+        <div className="navbar">
             <div className="navbar-inner">
               <a className="brand" href="#">dApp</a>
               <ul className='nav pull-right'>
@@ -197,11 +207,11 @@ const Content = () => {
     </ul>
     </div>
       <div className='container-fluid' id='nfts'>
-        <button onClick={onClick}>get NFTs</button>
+        <button onClick={()=>verifyCreator()}>get NFTs</button>
         <br></br>  <h1>NFTs in wallet <span id='totalNFTs'></span></h1>
         {tokensInWallet.length ? 
         <ul>
-          {tokensInWallet.map(token => <li>{token?.mint}</li>)}
+          {tokensInWallet.map((token, i) => <li key={i}>{token?.mint}</li>)}
         </ul>
         :null}
         
