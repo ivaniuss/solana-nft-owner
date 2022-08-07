@@ -4,3 +4,10 @@
   justify-content: center;
   align-items: center;
 }
+
+.flip-coin{
+  display: flex;
+  margin: auto;
+  padding: auto;
+  width: 8rem;
+}

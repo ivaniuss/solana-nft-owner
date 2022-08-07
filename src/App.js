@@ -1,4 +1,4 @@
-//    getTheTokensOfOwner()
+import { Routes, Route,useNavigate,  Link } from "react-router-dom";
 import { WalletAdapterNetwork,WalletNotConnectedError } from '@solana/wallet-adapter-base';
 import { ConnectionProvider, WalletProvider, useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { WalletModalProvider, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
@@ -14,6 +14,7 @@ import {
 } from '@solana/wallet-adapter-wallets';
 import ReactDOM from 'react-dom';
 
+
 import { clusterApiUrl, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import React, { useState, FC, ReactNode, useMemo, useCallback, useEffect } from 'react';
 
@@ -21,16 +22,20 @@ import { Metadata } from "@metaplex-foundation/mpl-token-metadata";
 import { Account } from "@metaplex-foundation/mpl-core";
 // import { deprecated } from "@metaplex-foundation/mpl-token-metadata";
 import {TOKEN_PROGRAM_ID} from '@solana/spl-token';
+// import execution from "./utils/burnNfts.js"
 require('./App.css');
 require('@solana/wallet-adapter-react-ui/styles.css');
 
 let tokensInWallet = []
 const CREATOR_ADDRESS = "FpxeTiprQeXRiMurJNQwDfXLDkYD1T1CrMH5KhJbUQ63"
-let login = false;
+const RANDOM_VALUE = 1
 const App = () => {
     return (
         <Context>
-            <Content />
+          <Routes>
+            <Route path="/" element={<Content />} />
+            <Route path="buy-chacana" element={<>Comprar chacanas</>} />
+          </Routes>
         </Context>
     );
 };
@@ -72,15 +77,14 @@ const Context = ({ children }) => {
 const Content = () => {
 
     const [matchedCreator, setMatchedCreator] = useState(false);
-
+    const [ creatorTokensAmount ,setCreatorTokensAmount] = useState(0);
+    const [totalNfts, setTotalNfts] = useState(0)
+    const [flipResult, setFlipResult] = useState("")
     const connection = new Connection("https://metaplex.devnet.rpcpool.com/");
-
+    const navigate = useNavigate();
     
     //getTokenAccountsByOwner(publicKey,)
     async function getTheTokensOfOwner(MY_WALLET_ADDRESS){
-    
-    
-    (async () => {
       //const MY_WALLET_ADDRESS = "9m5kFDqgpf7Ckzbox91RYcADqcmvxW4MmuNvroD5H2r9";
       const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
     
@@ -103,61 +107,36 @@ const Content = () => {
     
       console.log(
         `Found ${accounts.length} token account(s) for wallet ${MY_WALLET_ADDRESS}: `
-      );
-      let totalNFTsI = 0;
-      let matchedCreatorCount = 0;
-       await accounts.forEach(async (account, i) => {
-         // account.account.data;
-         let amountI = account.account.data["parsed"]["info"]["tokenAmount"]["uiAmount"];
-         let mint_s = account.account.data["parsed"]["info"]["mint"]
-    
-        if (amountI==1){
-          totalNFTsI += 1;
-
-          try{
-            console.log(
-              `-- Token Account Address ${i + 1}: ${account.pubkey.toString()} --`
-            );
-            console.log(`Mint: ${mint_s}`);
-            let objT = {};
-            objT.mint = mint_s
-            objT.amount =amountI
-            tokensInWallet.push(objT)
-            const metadata = await getAccountMetaData(mint_s);
-            if (CREATOR_ADDRESS == metadata?.creators[0].address){
-              setMatchedCreator(true)
-            }
-            console.log('objecttt', objT)
-           // let token_amount_i = account.account.data["parsed"]["info"]["tokenAmount"]["uiAmount"]
-           console.log(
-              `Amount: ${amountI}`
-              
-            ); 
-          }catch{
-            tokensInWallet.push({mint:mint_s,amount: amountI })
+        );
+        setMatchedCreator(false)
+        setTotalNfts(accounts.length)
+      let conunterIndex= 0 
+      accounts.forEach(async (account, i) => {
+        // console.log('error', i)
+        let mint_s = account.account.data["parsed"]["info"]["mint"]
+        try{
+          const metadata = await getAccountMetaData(mint_s);
+          if (CREATOR_ADDRESS === metadata?.creators[0].address){
+            console.log('mint', mint_s, metadata)
+            setMatchedCreator(true)
+            setCreatorTokensAmount(prev => prev+1)
+            conunterIndex++
           }
         }
-      
+        catch (error) {
+          console.log('error', error)          
+        }
+        if(i === accounts.length - 1 && conunterIndex === 0){
+          console.log('conunterIndex', conunterIndex)
+            setCreatorTokensAmount(-1)
+            navigate('/buy-chacana');
+          }
       });
 
-
-      console.log("total NFTs: {}", totalNFTsI);
-
-      let nfts_total_element = <span>({totalNFTsI})</span>;
- 
-      ReactDOM.render(nfts_total_element, document.getElementById("totalNFTs"))
- 
-
-      console.log("tokens: " + tokensInWallet)
-      let currentI = 0
-      await tokensInWallet.forEach(element => {
-        console.log("element[currentI].mint"+element.mint)
-        currentI+=1
-      });
-  
-    
-    })();
     }
+    
+
+
     
     async function getAccountMetaData(tokenAdr){
       const metadataPDA = await Metadata.getPDA(tokenAdr);
@@ -173,11 +152,16 @@ const Content = () => {
 
     
     const verifyCreator = () => {
-      return (<>{matchedCreator ? alert("Cuanto es 5 + 5"):alert("Aun no tienes una chacana")}</>)
+      const random = Math.floor(Math.random() * 4);
+      console.log('random number', random)
+      if (random === RANDOM_VALUE){
+        setFlipResult('you win')
+      }
+      else setFlipResult('you lose')
+      // return (<>{matchedCreator ? alert("Cuanto es 5 + 5"):alert("Aun no tienes una chacana")}</>)
     }
 
     const onClick = useCallback( async () => {
-      setMatchedCreator(false);
       tokensInWallet = []
 
       if (!publicKey) throw new WalletNotConnectedError();
@@ -189,33 +173,42 @@ const Content = () => {
       console.log(publicKey.toBase58());
       getTheTokensOfOwner(publicKey.toBase58());
       
-    }, [publicKey, sendTransaction, connection]);
+    }, [publicKey, sendTransaction, connection, matchedCreator]);
       
     useEffect( ()=>{
+      setFlipResult("")
       const res = async() =>{
         await onClick()
       } 
       res()
     },[publicKey])
-      return (
-        <div className="navbar">
-            <div className="navbar-inner">
-              <a className="brand" href="#">dApp</a>
-              <ul className='nav pull-right'>
-              <WalletMultiButton />
 
-    </ul>
-    </div>
-      <div className='container-fluid' id='nfts'>
-        <button onClick={()=>verifyCreator()}>get NFTs</button>
-        <br></br>  <h1>NFTs in wallet <span id='totalNFTs'></span></h1>
-        {tokensInWallet.length ? 
-        <ul>
-          {tokensInWallet.map((token, i) => <li key={i}>{token?.mint}</li>)}
-        </ul>
-        :null}
-        
+    useEffect(() =>{
+      // console.log('counter tokens', creatorTokensAmount, totalNfts);
+    }, [creatorTokensAmount])
+    
+      return (
+      <div className="navbar">
+        <div className="navbar-inner">
+          <ul className='nav pull-right'>
+            <WalletMultiButton />
+          </ul>
+        </div>
+        <div>
+          {creatorTokensAmount > 0?
+          <>
+            <button className='flip-coin' onClick={()=>verifyCreator()}>Flip Coin</button>
+            <h3 className='flip-coin'>{flipResult}</h3>
+          </>
+          :creatorTokensAmount === -1 ?
+          <button className='flip-coin' onClick={()=>verifyCreator()}>Buy a New Nft</button>
+          :""
+          }
+        </div>
+          <br></br> 
+          <h1>Total creator tokens
+            <h3>{creatorTokensAmount > 0 ? creatorTokensAmount: 0}</h3>
+          </h1>
       </div>
-    </div>
     );
 };
