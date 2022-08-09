@@ -22,12 +22,14 @@ import { Metadata } from "@metaplex-foundation/mpl-token-metadata";
 import { Account } from "@metaplex-foundation/mpl-core";
 // import { deprecated } from "@metaplex-foundation/mpl-token-metadata";
 import {TOKEN_PROGRAM_ID} from '@solana/spl-token';
+import axios from "axios";
 // import execution from "./utils/burnNfts.js"
 require('./App.css');
 require('@solana/wallet-adapter-react-ui/styles.css');
 
 let tokensInWallet = []
 const CREATOR_ADDRESS = "FpxeTiprQeXRiMurJNQwDfXLDkYD1T1CrMH5KhJbUQ63"
+
 const RANDOM_VALUE = 1
 const App = () => {
     return (
@@ -116,7 +118,8 @@ const Content = () => {
         let mint_s = account.account.data["parsed"]["info"]["mint"]
         try{
           const metadata = await getAccountMetaData(mint_s);
-          if (CREATOR_ADDRESS === metadata?.creators[0].address){
+          
+          if (CREATOR_ADDRESS === metadata?.creators[0].address && parseInt(metadata.tokenSupply) > 0){
             console.log('mint', mint_s, metadata)
             setMatchedCreator(true)
             setCreatorTokensAmount(prev => prev+1)
@@ -139,13 +142,20 @@ const Content = () => {
 
     
     async function getAccountMetaData(tokenAdr){
-      const metadataPDA = await Metadata.getPDA(tokenAdr);
-      const mintAccInfo = await connection.getAccountInfo(metadataPDA);
+      try {
+        const metadataPDA = await Metadata.getPDA(tokenAdr);
+        const mintAccInfo = await connection.getAccountInfo(metadataPDA);
+        const tokenInfo = await axios.get(`https://api.solscan.io/account?address=${tokenAdr}&cluster=devnet`)
+        const tokenSupply = tokenInfo?.data?.data?.tokenInfo?.supply
 
-      const {
-        data: { data: metadata }
-      } = Metadata.from(new Account(tokenAdr, mintAccInfo));
-      return metadata;
+        const {
+          data: { data: metadata }
+        } = Metadata.from(new Account(tokenAdr, mintAccInfo));
+        return {...metadata, tokenSupply};
+        
+      } catch (error) {
+        console.log('error', error)
+      }
     }
     
     const { publicKey, sendTransaction } = useWallet();
