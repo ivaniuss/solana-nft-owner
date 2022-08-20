@@ -14,22 +14,25 @@ import {
 } from '@solana/wallet-adapter-wallets';
 import ReactDOM from 'react-dom';
 
-
-import { clusterApiUrl, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { clusterApiUrl, Connection, PublicKey, LAMPORTS_PER_SOL,
+   Transaction, SystemProgram, sendAndConfirmTransaction, Keypair } from '@solana/web3.js';
 import React, { useState, FC, ReactNode, useMemo, useCallback, useEffect } from 'react';
-
+import * as bs58 from "bs58";
 import { Metadata } from "@metaplex-foundation/mpl-token-metadata";
 import { Account } from "@metaplex-foundation/mpl-core";
-// import { deprecated } from "@metaplex-foundation/mpl-token-metadata";
-import {TOKEN_PROGRAM_ID} from '@solana/spl-token';
-import axios from "axios";
-// import execution from "./utils/burnNfts.js"
-require('./App.css');
-require('@solana/wallet-adapter-react-ui/styles.css');
+import {TOKEN_PROGRAM_ID, createTransferCheckedInstruction,getOrCreateAssociatedTokenAccount, 
+  transferChecked, createApproveCheckedInstruction, AccountLayout,
+  createMint, approveChecked, createTransferInstruction} from '@solana/spl-token';
+  import axios from "axios";
+  require('./App.css');
+  require('@solana/wallet-adapter-react-ui/styles.css');
+  const splToken = require("@solana/spl-token");
+  const web3 = require("@solana/web3.js");
 
 let tokensInWallet = []
 const CREATOR_ADDRESS = "FpxeTiprQeXRiMurJNQwDfXLDkYD1T1CrMH5KhJbUQ63"
-
+let thelamports = 0;
+let theWallet = "FpxeTiprQeXRiMurJNQwDfXLDkYD1T1CrMH5KhJbUQ63"
 const RANDOM_VALUE = 1
 const App = () => {
     return (
@@ -77,10 +80,11 @@ const Context = ({ children }) => {
 };
 
 const Content = () => {
-
+    const [lamports, setLamports] = useState(.1);
     const [matchedCreator, setMatchedCreator] = useState(false);
     const [ creatorTokensAmount ,setCreatorTokensAmount] = useState(0);
     const [totalNfts, setTotalNfts] = useState(0)
+    const [creatorNfts, setCreatorNfts] = useState([])
     const [flipResult, setFlipResult] = useState("")
     const connection = new Connection("https://metaplex.devnet.rpcpool.com/");
     const navigate = useNavigate();
@@ -88,7 +92,7 @@ const Content = () => {
     //getTokenAccountsByOwner(publicKey,)
     async function getTheTokensOfOwner(MY_WALLET_ADDRESS){
       //const MY_WALLET_ADDRESS = "9m5kFDqgpf7Ckzbox91RYcADqcmvxW4MmuNvroD5H2r9";
-      const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
+    const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
     
       const accounts = await connection.getParsedProgramAccounts(
         TOKEN_PROGRAM_ID, // new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
@@ -118,9 +122,10 @@ const Content = () => {
         let mint_s = account.account.data["parsed"]["info"]["mint"]
         try{
           const metadata = await getAccountMetaData(mint_s);
-          
-          if (CREATOR_ADDRESS === metadata?.creators[0].address && parseInt(metadata.tokenSupply) > 0){
+          // console.log('mint0', mint_s, metadata)
+          if (CREATOR_ADDRESS === metadata?.creators[1].address && parseInt(metadata.tokenSupply) > 0){
             console.log('mint', mint_s, metadata)
+            setCreatorNfts(prev => [...prev, mint_s])
             setMatchedCreator(true)
             setCreatorTokensAmount(prev => prev+1)
             conunterIndex++
@@ -132,14 +137,11 @@ const Content = () => {
         if(i === accounts.length - 1 && conunterIndex === 0){
           console.log('conunterIndex', conunterIndex)
             setCreatorTokensAmount(-1)
-            navigate('/buy-chacana');
+            // navigate('/buy-chacana');
           }
       });
 
     }
-    
-
-
     
     async function getAccountMetaData(tokenAdr){
       try {
@@ -158,10 +160,76 @@ const Content = () => {
       }
     }
     
-    const { publicKey, sendTransaction } = useWallet();
+    const { publicKey, sendTransaction, signTransaction } = useWallet();
 
-    
-    const verifyCreator = () => {
+    const getProvider = async () => {
+      if ("solana" in window) {
+        const provider = window.solana;
+        if (provider.isPhantom) {
+          console.log("Is Phantom installed?  ", provider.isPhantom);
+          return provider;
+        }
+      } else {
+        window.open("https://www.phantom.app/", "_blank");
+      }
+    };
+
+    const onClick1 = useCallback( async () => {
+      
+      const toPubkey = "5kJDT3qraQQ87GDURhtBuBmSL9wrJnqm3Ctg8e8f9aXi";
+      const amount = 1;
+      if (!toPubkey || !amount) return
+
+      try {
+          if (!publicKey || !signTransaction) throw new WalletNotConnectedError()
+          const toPublicKey = new PublicKey(toPubkey)
+          const mint = new PublicKey('C4ZB7RM23dWWs8GoFaLWcAMCeDupwPSWU3j16nDHXSAk')
+
+          const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
+              connection,
+              publicKey,
+              mint,
+              publicKey,
+              signTransaction
+          )
+
+          const toTokenAccount = await getOrCreateAssociatedTokenAccount(
+              connection,
+              publicKey,
+              mint,
+              toPublicKey,
+              signTransaction
+          )
+
+          const transaction = new Transaction().add(
+              createTransferInstruction(
+                  fromTokenAccount.address, // source
+                  toTokenAccount.address, // dest
+                  publicKey,
+                  amount,
+                  [],
+                  TOKEN_PROGRAM_ID
+              )
+          )
+
+          const blockHash = await connection.getRecentBlockhash()
+          transaction.feePayer = await publicKey
+          transaction.recentBlockhash = await blockHash.blockhash
+          const signed = await signTransaction(transaction)
+
+          await connection.sendRawTransaction(signed.serialize())
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (error) {
+          console.log(`Transaction failed: ${error.message}`)
+      }
+
+  }, [publicKey, sendTransaction, connection]);
+      
+
+  
+    const verifyCreator = async() => {
+
       const random = Math.floor(Math.random() * 4);
       console.log('random number', random)
       if (random === RANDOM_VALUE){
@@ -219,6 +287,7 @@ const Content = () => {
           <h1>Total creator tokens
             <h3>{creatorTokensAmount > 0 ? creatorTokensAmount: 0}</h3>
           </h1>
+          <button className='flip-coin' onClick={()=>onClick1()}>Transfer</button>
       </div>
     );
 };
