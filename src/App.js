@@ -183,7 +183,7 @@ const Content = () => {
       try {
           if (!publicKey || !signTransaction) throw new WalletNotConnectedError()
           const toPublicKey = new PublicKey(toPubkey)
-          const mint = new PublicKey('C4ZB7RM23dWWs8GoFaLWcAMCeDupwPSWU3j16nDHXSAk')
+          const mint = new PublicKey(creatorNfts[0])
 
           const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
               connection,
